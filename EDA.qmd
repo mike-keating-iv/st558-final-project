@@ -1,0 +1,168 @@
+---
+title: "EDA"
+format: html
+author: Mike Keating
+---
+
+## Introduction
+
+This dataset contains health and lifestyle survey responses from over 250,000 individuals. The primary response variable of interest is `Diabetes_binary`, a binary variable indicating whether a respondent has diabetes (1) or not (0).
+
+Responses were collected through the CDC's Behavioral Risk Factor Surveillance system, a health related telephone system. This dataset includes responses from the year 2015 and was downloaded from [Kaggle](https://www.kaggle.com/datasets/alexteboul/diabetes-health-indicators-dataset/data).
+
+## Data
+
+The dataset includes variables related to:
+
+-   **Health history:** High blood pressure, high cholesterol, stroke, heart disease
+-   **Lifestyle habits:** Physical activity, smoking, alcohol consumption, diet
+-   **Demographics:** Sex, age, education, income
+
+```{r warning=FALSE, message=FALSE}
+# Dependencies
+library(ggplot2)
+library(tidyverse)
+library(ggthemes)
+```
+
+```{r}
+# Load data
+
+diabetes <- read_csv("data/diabetes_binary_health_indicators_BRFSS2015.csv", 
+                     show_col_types = FALSE)
+str(diabetes)
+
+# Check for missing values and remove if needed
+if(anyNA(diabetes)){
+  diabetes <- diabetes |> drop_na()
+}
+
+```
+
+## Exploratory Analysis: Socioeconomic Factors
+
+There is a wide body of research linking diabetes and socioeconomic factors such as income, education, and race. Diabetes disproportionately effects minorities and those with low socioeconomic status.
+
+In this analysis, we will explore the impact of the following variables related to socioeconomic factors.
+
+-   **Income**: A self-reported bracketed income variable (1 = lowest, 8 = highest).
+-   **Education**: An ordinal variable measuring the highest level of education completed (1 = lowest, 6 = highest).
+-   **NoDocbcCost**: Indicates whether someone was unable to see a doctor in the past year due to cost (1 = yes, 0 = no).
+
+These variables are important because lower income and education are known to correlate with higher diabetes risk. Additionally, cost-related barriers to healthcare can delay diagnosis and management of chronic conditions like diabetes.
+
+#### Data Transformation
+
+First, we need to transform our variables of interest that are currently numeric into a factor data type with labels that are easy for us to understand.
+
+```{r}
+
+# Reassign variables of interest into factors with meaningful labels
+# Labels were assigned from the codebook
+diabetes_eda <- diabetes |> 
+  mutate(Income = factor(Income, 
+                         levels = 1:8, 
+                         labels = c("LT $10k", "$10-15k", "$15-20k", "$20-25k", "$25-35k",
+                                    "$35-50k", "$50-75k", "GT $75k")),
+         Education = factor(Education,
+                            levels = 1:6,
+                            labels = c("None", "Elementary", "Some HS", "HS Graduate", 
+                                       "Some College", "College Graduate")),
+         NoDocbcCost = factor(NoDocbcCost,
+                              levels = 0:1,
+                              labels = c("No Barrier", "Cost Barrier")),
+         Diabetes_binary = factor(Diabetes_binary,
+                                  levels = 0:1,
+                                  labels = c("Nondiabetic", "Diabetic"))) |>
+  select(Diabetes_binary, Income, Education, NoDocbcCost)
+
+```
+
+#### Summary Statistics
+
+```{r}
+diabetes_eda |> summary()
+```
+
+##### Income
+
+```{r}
+# Univariate
+diabetes |> 
+  ggplot(aes(x = Income)) +
+  geom_bar(fill = "darkseagreen") +
+  labs(title = "Income Distribution", x = "Income Bracket", y = "Count") +
+  theme_few() +
+  scale_fill_few() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
+
+```
+
+```{r}
+
+# Plot diabetes with income
+diabetes_eda |> 
+  ggplot(aes(x = Income, fill = Diabetes_binary)) +
+  geom_bar(position = "fill") +
+  labs(title = "Proportion of Diabetes by Income Bracket", y = "Proportion", fill = "Diabetes") +
+  theme_few() +
+  scale_fill_few("Light") + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+```
+
+From the above plot, we can see a clear trend of decreasing rates of diabetes as income increases.
+
+##### Education
+
+```{r}
+# Univariate
+diabetes_eda |> 
+  ggplot(aes(x = Education)) +
+  geom_bar(fill = "darkseagreen") +
+  labs(title = "Education Level Distribution", x = "Education Level", y = "Count") +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
+```
+
+```{r}
+# Diabetes by edu level
+diabetes_eda |> ggplot(aes(x = Education, fill = Diabetes_binary)) +
+  geom_bar(position = "fill") +
+  labs(title = "Proportion of Diabetes by Education Level", 
+       y = "Proportion", 
+       fill="Diabetes") +
+  theme_few() +
+  scale_fill_few() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+##### Cost Barrier for Treatment
+
+```{r}
+diabetes_eda |> 
+  ggplot(aes(x = NoDocbcCost)) +
+  geom_bar(fill = "darkseagreen") +
+  labs(title = "Cost Barrier Distribution", x = "Cost Barrier", y = "Count") +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
+```
+
+```{r}
+# Diabetes by cost barrier
+diabetes_eda |> ggplot(aes(x =NoDocbcCost, fill = Diabetes_binary)) +
+  geom_bar(position = "fill") +
+  labs(title = "Proportion of Diabetes by Cost Barrier", 
+       y = "Proportion", 
+       fill = "Diabetes", 
+       x = "Cost Barrier") +
+  theme_few() +
+  scale_fill_few()
+```
+
+Those that experience cost barriers to medical care do appear to have a slightly larger prevalence of diabetes, although it doesn't seem extreme.
+
+### EDA Conclusion
+
+Based on our EDA of socioeconomic factors such as education, income, and cost barrier to care, there does seem to be enough evidence of a relationship of these variables to diabetes. However, intuition may suggest these effects are more marginal than variables that are directly related to health such as BMI or diet, so those factors will likely be included in our predictive model in the next steps even if they are not visualized on this page.
+
+PLACEHOLDER FOR LINK TO MODELING
