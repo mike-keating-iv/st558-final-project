@@ -63,6 +63,23 @@ test <- testing(diabetes_split)
 
 ### Logistic Regression
 
+```{r}
+# All 5 predictors
+LR1_recipe <- recipe(Diabetes_binary ~ . ,
+                     data = train) |> 
+  step_normalize(all_numeric_predictors())
+
+# Only socieoeconomic
+LR2_recipe <- recipe(Diabetes_binary ~ Income + Education + NoDocbcCost, 
+                     data = train)
+
+# With Interaction
+LR3_recipe <- recipe(Diabetes_binary ~ Income + Education + NoDocbcCost + BMI + PhysActivity,
+                     data = train) |> 
+  step_normalize(all_numeric_predictors()) |>
+  step_interact(terms = ~ starts_with("Edu"):starts_with("Income"))
+```
+
 ### Classification Tree
 
 ### Random Forest
