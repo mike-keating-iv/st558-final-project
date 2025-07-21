@@ -14,15 +14,16 @@ The dataset includes variables related to:
 -   **Lifestyle habits:** Physical activity, smoking, alcohol consumption, diet
 -   **Demographics:** Sex, age, education, income
 
-Our goal in this modeling section is to create a classification model to predict whether or not someone has diabetes. In addition to these socioeconomic variables we will include variables we suspect are more directly related to health such as BMI and physical activity.
+Our goal in this modeling section is to create a classification model to predict whether or not someone has diabetes. In addition to these socioeconomic variables we will include variables more directly related to health such as BMI, physical activity, and age. This will ideally improve prediction performance of our models while keeping computational cost down as opposed to using every possible predictor.
 
 ### Data
 
 ```{r warning=FALSE, message=FALSE}
 # Dependencies
-library(tidyverse)
+library(tidyverse) 
 library(tidymodels)
-library(ggplot2)
+library(ggplot2) 
+
 
 # Load data
 diabetes <- read_csv("data/diabetes_binary_health_indicators_BRFSS2015.csv", 
@@ -44,8 +45,11 @@ diabetes <- diabetes |>
                                   labels = c("Nondiabetic", "Diabetic")),
          PhysActivity = factor(PhysActivity,
                                levels = 0:1,
-                               labels = c("No", "Yes"))) |>
-  select(Diabetes_binary, Income, Education, NoDocbcCost, BMI, PhysActivity)
+                               labels = c("No", "Yes")),
+         Age = factor(Age,
+                      levels = 0:13 )) |>
+  select(Diabetes_binary, Income, Education, NoDocbcCost, PhysActivity, Age, BMI)
+  
 
 ```
 
@@ -64,23 +68,104 @@ test <- testing(diabetes_split)
 ### Logistic Regression
 
 ```{r}
-# All 5 predictors
-LR1_recipe <- recipe(Diabetes_binary ~ . ,
-                     data = train) |> 
-  step_normalize(all_numeric_predictors())
+# Use all preselected predictors
+LR1_recipe <- recipe(Diabetes_binary ~ ., data = train) |> 
+  step_normalize(all_numeric_predictors()) |>
+  step_dummy(all_nominal_predictors())
 
 # Only socieoeconomic
 LR2_recipe <- recipe(Diabetes_binary ~ Income + Education + NoDocbcCost, 
-                     data = train)
+                     data = train) |>
+  step_dummy(all_nominal_predictors())
 
 # With Interaction
-LR3_recipe <- recipe(Diabetes_binary ~ Income + Education + NoDocbcCost + BMI + PhysActivity,
+LR3_recipe <- recipe(
+  Diabetes_binary ~ Income + Education + NoDocbcCost + BMI + PhysActivity, 
                      data = train) |> 
   step_normalize(all_numeric_predictors()) |>
+  step_dummy(all_nominal_predictors()) |>
   step_interact(terms = ~ starts_with("Edu"):starts_with("Income"))
+
+# Spec model
+LR_spec <- logistic_reg() |> 
+  set_engine("glm")
+
+# Create workflows
+LR1_wkf <- workflow() |> 
+  add_recipe(LR1_recipe) |> 
+  add_model(LR_spec)
+
+LR2_wkf <- workflow() |> 
+  add_recipe(LR2_recipe) |> 
+  add_model(LR_spec)
+
+LR3_wkf <- workflow() |> 
+  add_recipe(LR3_recipe) |> 
+  add_model(LR_spec)
+
+# Cross-validation folds
+cv_folds = vfold_cv(train, 5, 2)
+
+# Fit Models
+# NOTE: Keeping 
+LR1_fit <- LR1_wkf |> 
+  fit_resamples(cv_folds, 
+                metrics = metric_set(accuracy, mn_log_loss))
+
+LR2_fit <- LR2_wkf |> 
+  fit_resamples(cv_folds, 
+                metrics = metric_set(accuracy, mn_log_loss))
+
+LR3_fit <- LR3_wkf |> 
+  fit_resamples(cv_folds, 
+                metrics = metric_set(accuracy, mn_log_loss))
+
+# Metrics 
+rbind(LR1_fit |> collect_metrics(),
+      LR2_fit |> collect_metrics(),
+      LR3_fit |> collect_metrics()) |>
+  mutate(Model = c("LR1", "LR1", "LR2", "LR2","LR3", "LR3")) |>
+  select(Model, everything())
+```
+
+The LR1 model (all previously selected predictors) performs the best when evaluating over log-loss, and is nearly identical to the model with interaction, suggesting adding this interaction term did not improve our model very much.
+
+```{r}
+# Save best LR model
+LR_best <- LR1_wkf
 ```
 
 ### Classification Tree
+
+```{r}
+# Recipe (only need one since we will tune)
+# Note that we don't need to normalize the numeric values here since tree models are not distance based
+tree_recipe <- recipe(Diabetes_binary ~ ., data = train) |>
+  step_dummy(all_nominal_predictors()) 
+
+# Model
+tree_spec <- decision_tree(cost_complexity = tune(),
+                           tree_depth = NULL,
+                           min_n = NULL) |>
+  set_engine("rpart") |>
+  set_mode("classification")
+
+# Set complexity grid for tuning
+tree_grid <- grid_regular(cost_complexity(), levels = 5)
+
+# Workflow
+tree_wkf <- workflow() |>
+  add_model(tree_spec) |>
+  add_recipe(tree_recipe)
+
+tree_fit <- tune_grid(tree_wkf,
+                      resamples = cv_folds,
+                      grid = tree_grid,
+                      metrics = metric_set(accuracy, mn_log_loss))
+
+tree_fit |> collect_metrics()
+
+```
 
 ### Random Forest
 
