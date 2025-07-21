@@ -67,6 +67,8 @@ test <- testing(diabetes_split)
 
 ### Logistic Regression
 
+Logistic regression is a generalized linear model that is used for binary classification problems. It transforms the desired response variable to a sigmoid function representing the log-odds of a success and links to the linear combination of the predictors. It is useful when classifying into one of two possibilities (for example, diabetic or nondiabetic) and is relatively simple to tune (through selection of predictors).
+
 ```{r}
 # Use all preselected predictors
 LR1_recipe <- recipe(Diabetes_binary ~ ., data = train) |> 
@@ -133,9 +135,12 @@ The LR1 model (all previously selected predictors) performs the best when evalua
 ```{r}
 # Save best LR model
 LR_best <- LR1_wkf
+
 ```
 
 ### Classification Tree
+
+A classification tree is a decision-based model that recursively splits the dataset into subgroups based on predictor values. Essentially, each point in the tree chooses a variable and a threshold (e.g. BMI \>30) to best separate the desired target classes (diabetic, non diabetic). This is repeated until certain criteria is met, such as tree depth, number of observations, and/or complexity penalty. Decision trees can be useful because they automatically filter for important features (feature thresholds that don't lead to information gain generally are not selected). Additionally, decision trees are easy to interpret and do not require scaling of numeric features as they do not use distance-based metrics.
 
 ```{r}
 # Recipe (only need one since we will tune)
@@ -165,6 +170,13 @@ tree_fit <- tune_grid(tree_wkf,
 
 tree_fit |> collect_metrics()
 
+```
+
+```{r}
+# Get the best model based on log loss
+tree_best <- select_best(tree_fit, metric = "mn_log_loss")
+
+tree
 ```
 
 ### Random Forest
