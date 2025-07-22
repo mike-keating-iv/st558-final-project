@@ -28,14 +28,19 @@ library(ggplot2)
 # Load data
 diabetes <- read_csv("data/diabetes_binary_health_indicators_BRFSS2015.csv", 
                      show_col_types = FALSE)
+
+# Treat as factor and assign labels
 diabetes <- diabetes |> 
   mutate(Income = factor(Income, 
                          levels = 1:8, 
-                         labels = c("LT $10k", "$10-15k", "$15-20k", "$20-25k", "$25-35k",
-                                    "$35-50k", "$50-75k", "GT $75k")),
+                         labels = c("LT $10k", "$10-15k", 
+                                    "$15-20k", "$20-25k", 
+                                    "$25-35k","$35-50k", 
+                                    "$50-75k", "GT $75k")),
          Education = factor(Education,
                             levels = 1:6,
-                            labels = c("None", "Elementary", "Some HS", "HS Graduate", 
+                            labels = c("None", "Elementary", 
+                                       "Some HS", "HS Graduate", 
                                        "Some College", "College Graduate")),
          NoDocbcCost = factor(NoDocbcCost,
                               levels = 0:1,
@@ -46,7 +51,15 @@ diabetes <- diabetes |>
          PhysActivity = factor(PhysActivity,
                                levels = 0:1,
                                labels = c("No", "Yes")),
-         Age = factor(Age)) |>
+         Age = factor(Age, 
+                      levels = 1:13,
+                      labels = c("18-24","25-29",
+                                 "30-34","35-39",
+                                 "40-44","45-49",
+                                 "50-54","55-59",
+                                 "60-64","65-69",
+                                 "70-74","75-79",
+                                 "80 or older"))) |>
   select(Diabetes_binary, Income, Education, NoDocbcCost, PhysActivity, Age, BMI)
   
 
@@ -54,7 +67,7 @@ diabetes <- diabetes |>
 
 ### Test Train Split
 
-```{r}
+```{r warning=FALSE}
 # Set Seed
 set.seed(123)
 
@@ -296,26 +309,6 @@ Let's save this into a file object so we can retrieve it in our api without retr
 ```{r}
 
 # Save final model
-save(rf_deployment_fit, file = "deployment_model.rda")
 
-```
-
-```{r}
-# Load your saved workflow
-load("deployment_model.rda")
-
-# Extract the recipe from the workflow
-library(workflows)
-library(recipes)
-model_recipe <- extract_recipe(rf_deployment_fit)
-
-# The template slot holds a tibble with the variable structure and factor levels
-str(model_recipe$template)
-
-# To see the levels for a specific variable, e.g., Education:
-levels(model_recipe$template$Education)
-
-# To see all factor levels for all variables:
-lapply(model_recipe$template, levels)
-
+write_rds(rf_deployment_fit, "final_model.rds")
 ```
