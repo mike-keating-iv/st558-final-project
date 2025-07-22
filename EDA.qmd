@@ -84,6 +84,16 @@ diabetes_eda <- diabetes |>
 diabetes_eda |> summary()
 ```
 
+Let's first look at how many people have diabetes in the dataset.
+
+```{r}
+diabetes %>%
+  count(Diabetes_binary) %>%
+  mutate(prop = n / sum(n))
+```
+
+There is a large class imbalance in this dataset, which means it may be difficult to predict those in the minority class (with diabetes) and measures of accuracy may be misleading.
+
 ##### Income
 
 ```{r}

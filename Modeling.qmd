@@ -46,8 +46,7 @@ diabetes <- diabetes |>
          PhysActivity = factor(PhysActivity,
                                levels = 0:1,
                                labels = c("No", "Yes")),
-         Age = factor(Age,
-                      levels = 0:13 )) |>
+         Age = factor(Age)) |>
   select(Diabetes_binary, Income, Education, NoDocbcCost, PhysActivity, Age, BMI)
   
 
@@ -63,6 +62,9 @@ set.seed(123)
 diabetes_split <- diabetes |> initial_split(prop=0.7)
 train <- training(diabetes_split)
 test <- testing(diabetes_split)
+library(future)
+
+
 ```
 
 ### Logistic Regression
@@ -106,7 +108,7 @@ LR3_wkf <- workflow() |>
   add_model(LR_spec)
 
 # Cross-validation folds
-cv_folds = vfold_cv(train, 5, 2)
+cv_folds = vfold_cv(train, 5)
 
 # Fit Models
 # NOTE: Keeping 
@@ -133,10 +135,11 @@ rbind(LR1_fit |> collect_metrics(),
 The LR1 model (all previously selected predictors) performs the best when evaluating over log-loss, and is nearly identical to the model with interaction, suggesting adding this interaction term did not improve our model very much.
 
 ```{r}
-# Save best LR model
-LR_final_fit<- LR1_wkf |> 
+# Save best model and fit on test set
+LR_final_fit <- LR1_wkf |> 
   last_fit(diabetes_split, metrics = metric_set(accuracy, mn_log_loss))
 
+LR_final_metrics <- LR_final_fit |> collect_metrics() |> mutate(Model = c("Log Reg"))
 ```
 
 ### Classification Tree
@@ -182,8 +185,11 @@ tree_final_wkf <- tree_wkf |> finalize_workflow(tree_best_params)
 
 # Final fit
 tree_final_fit <- tree_final_wkf |> 
-  last_fit(diabetes_split)
+  last_fit(diabetes_split, metrics =metric_set(accuracy, mn_log_loss))
 
+tree_final_metrics <- tree_final_fit |>
+  collect_metrics() |>
+  mutate(Model = c("Tree"))
 ```
 
 ### Random Forest
@@ -193,39 +199,52 @@ Random Forest is an ensemble method that builds multiple decision trees during t
 For classification, the final prediction is performed via a majority vote of all the ensemble trees.
 
 ```{r}
-# Random forest model
-library(future)
-# Set up parallel backend
-plan(multisession, workers = parallel::detectCores() - 1)
+# Make a smaller sample for tuning since performance was a bottleneck
+small_train <- train |> slice_sample(prop = 0.2)
+small_cv_folds <- vfold_cv(small_train, v = 5)
 
-rf_spec <- rand_forest(mtry = tune()) |>
+# Recipe
+rf_small_recipe <- recipe(Diabetes_binary ~ ., data = small_train) |>
+  step_dummy(all_nominal_predictors())
+
+# Random forest model
+rf_spec <- rand_forest(mtry = tune(), trees = 150) |>
   set_engine("ranger") |>
   set_mode("classification")
 
 # Workflow
 rf_wkf <- workflow() |> 
-  add_recipe(tree_recipe) |>
+  add_recipe(rf_small_recipe) |>
   add_model(rf_spec)
+
+# Finalize mtry range
+param_set <- rf_spec |> parameters()
+final_param_set <- finalize(param_set, small_train)
+
+# Build tuning grid
+# Levels was hand-tuned after some trial and error
+rf_grid <- grid_regular(final_param_set, levels = 7)
 
 # Cross-validation fit
 rf_fit <- rf_wkf |> 
-  tune_grid(resamples = cv_folds,
-            grid = 7,
-            control = control_grid(save_pred = TRUE,
-                                   parallel_over = "resamples"),
+  tune_grid(resamples = small_cv_folds,
+            grid = rf_grid,
             metrics = metric_set(accuracy, mn_log_loss))
 
-rf_fit |> collect_metrics()
-
-plan(sequential)
 ```
 
 ```{r}
 # Get the best model based on log loss
 rf_best_params <- select_best(rf_fit, metric = "mn_log_loss")
 
+# Final recipe (trained on full training set)
+rf_final_recipe <- recipe(Diabetes_binary ~ ., data = train) |> 
+  step_dummy(all_nominal_predictors())
+
 # Final workflow
-rf_final_wkf <- rf_wkf |>
+rf_final_wkf <- workflow() |> 
+  add_recipe(rf_final_recipe) |> 
+  add_model(rf_spec) |> 
   finalize_workflow(rf_best_params)
 
 # Final Fit
@@ -235,4 +254,50 @@ rf_final_fit <- rf_final_wkf |>
 
 ```
 
+```{r}
+# Collect metrics
+rf_final_metrics <- rf_final_fit |> 
+  collect_metrics() |> 
+  mutate(Model = "Random Forest")
+```
+
 ### Final Model Selection
+
+Let's take a look at the top model for each technique.
+
+```{r}
+rbind(LR_final_metrics, tree_final_metrics, rf_final_metrics) |> 
+  filter(.metric == "mn_log_loss") |> 
+  select(Model , everything())
+```
+
+It appears the Random Forest model performs the best when using log-loss as the score - so we will select that as our final model!
+
+```{r}
+# Let's retrain the random forest on the entire dataset for api deployment
+
+rf_deployment_recipe <- recipe(Diabetes_binary ~ . , data = diabetes) |> 
+  step_dummy(all_nominal_predictors())
+
+# Deployment workflow
+rf_deployment_wkf <- workflow() |> 
+  add_recipe(rf_deployment_recipe) |> 
+  add_model(rf_spec) |> 
+  finalize_workflow(rf_best_params)
+
+rf_deployment_fit <- rf_deployment_wkf |>
+  last_fit(diabetes_split, 
+           metrics = metric_set(accuracy, mn_log_loss))
+
+
+```
+
+Let's save this into a file object so we can retrieve it in our api without retraining and refitting.
+
+```{r}
+deployment_workflow <- rf_deployment_fit |> extract_workflow()
+
+# Save final model
+save(deployment_workflow, file = "deployment_model.rda")
+
+```
