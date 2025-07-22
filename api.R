@@ -17,7 +17,7 @@ defaults <- list(
   BMI = mean(diabetes$BMI, na.rm = TRUE),
   # Factors
   Age = names(which.max(table(diabetes$Age))),
-  Education = names(which.max(table(diabetes$Education))),
+  Education = as.integer(names(which.max(table(diabetes$Education)))),
   NoDocbcCost = names(which.max(table(diabetes$NoDocbcCost))),
   Income = names(which.max(table(diabetes$Income))),
   PhysActivity = names(which.max(table(diabetes$PhysActivity)))
@@ -42,17 +42,25 @@ function(Age = defaults$Age,
          BMI = defaults$BMI, 
          Education = defaults$Education, 
          Income = defaults$Income, 
-         NoDocbcCost = defaults$NoDocbcCos,
+         NoDocbcCost = defaults$NoDocbcCost, # fixed typo
          PhysActivity = defaults$PhysActivity){
-  
-  input_data <- tibble(Age = Age,
-                       BMI = as.numeric(BMI),
-                       Education = as_factor(Education),
-                       Income = Income,
-                       NoDocbcCost = NoDocbcCost,
-                       PhysActivity = PhysActivity)
-  
-  prediction <- predict(deployment_workflow, input_data)
+
+  # Get levels from training data
+  education_levels <- as.integer(sort(unique(diabetes$Education)))
+  income_levels <- as.integer(sort(unique(diabetes$Income)))
+  nodoccost_levels <- as.integer(sort(unique(diabetes$NoDocbcCost)))
+  physactivity_levels <- as.integer(sort(unique(diabetes$PhysActivity)))
+
+  input_data <- tibble(
+    Age = Age,
+    BMI = as.numeric(BMI),
+    Education = factor(as.integer(Education), levels = education_levels),
+    Income = factor(as.integer(Income), levels = income_levels),
+    NoDocbcCost = factor(as.integer(NoDocbcCost), levels = nodoccost_levels),
+    PhysActivity = factor(as.integer(PhysActivity), levels = physactivity_levels)
+  )
+
+  prediction <- predict(rf_deployment_fit, input_data)
   return(prediction)
 }
 

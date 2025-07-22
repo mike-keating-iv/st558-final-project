@@ -286,8 +286,7 @@ rf_deployment_wkf <- workflow() |>
   finalize_workflow(rf_best_params)
 
 rf_deployment_fit <- rf_deployment_wkf |>
-  last_fit(diabetes_split, 
-           metrics = metric_set(accuracy, mn_log_loss))
+  fit(diabetes)
 
 
 ```
@@ -295,9 +294,28 @@ rf_deployment_fit <- rf_deployment_wkf |>
 Let's save this into a file object so we can retrieve it in our api without retraining and refitting.
 
 ```{r}
-deployment_workflow <- rf_deployment_fit |> extract_workflow()
 
 # Save final model
-save(deployment_workflow, file = "deployment_model.rda")
+save(rf_deployment_fit, file = "deployment_model.rda")
+
+```
+
+```{r}
+# Load your saved workflow
+load("deployment_model.rda")
+
+# Extract the recipe from the workflow
+library(workflows)
+library(recipes)
+model_recipe <- extract_recipe(rf_deployment_fit)
+
+# The template slot holds a tibble with the variable structure and factor levels
+str(model_recipe$template)
+
+# To see the levels for a specific variable, e.g., Education:
+levels(model_recipe$template$Education)
+
+# To see all factor levels for all variables:
+lapply(model_recipe$template, levels)
 
 ```

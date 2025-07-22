@@ -1,2 +1,0 @@
-library(plumber)
-r <- plumb()
