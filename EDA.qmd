@@ -20,6 +20,7 @@ The dataset includes variables related to:
 
 ```{r warning=FALSE, message=FALSE}
 # Dependencies
+
 library(ggplot2)
 library(tidyverse)
 library(ggthemes)
