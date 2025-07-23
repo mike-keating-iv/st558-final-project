@@ -173,4 +173,4 @@ Those that experience cost barriers to medical care do appear to have a slightly
 
 Based on our EDA of socioeconomic factors such as education, income, and cost barrier to care, there does seem to be enough evidence of a relationship of these variables to diabetes. However, intuition may suggest these effects are more marginal than variables that are directly related to health such as BMI or diet, so those factors will likely be included in our predictive model in the next steps even if they are not visualized on this page.
 
-PLACEHOLDER FOR LINK TO MODELING
+[Click here for the Modeling Page](Modeling.html)

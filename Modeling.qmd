@@ -194,11 +194,13 @@ tree_fit |> collect_metrics()
 tree_best_params <- select_best(tree_fit, metric = "mn_log_loss")
 
 # Final workflow
-tree_final_wkf <- tree_wkf |> finalize_workflow(tree_best_params)
+tree_final_wkf <- tree_wkf |> 
+  finalize_workflow(tree_best_params)
 
 # Final fit
 tree_final_fit <- tree_final_wkf |> 
-  last_fit(diabetes_split, metrics =metric_set(accuracy, mn_log_loss))
+  last_fit(diabetes_split, 
+           metrics = metric_set(accuracy, mn_log_loss))
 
 tree_final_metrics <- tree_final_fit |>
   collect_metrics() |>
